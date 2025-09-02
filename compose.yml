@@ -1,0 +1,16 @@
+name: interview-insight-api-dev
+services:
+  mongo:
+    image: mongo:latest
+    environment:
+      MONGO_INITDB_DATABASE: interview-insight
+    ports:
+      - '27017:27017'
+    networks:
+      - db
+
+networks:
+  db:
+    driver: bridge
+  cache:
+    driver: bridge
