@@ -1,24 +1,21 @@
-import * as mongoose from 'mongoose';
-import { TranscriptSegmentSchema } from './transcript-segment.schema';
-import { InterviewProcessingStatus } from '../types';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import mongoose from 'mongoose';
+import { RecordingModelName } from '../../constants';
+import { Recording } from '../../recordings/schemas/recording.schema';
 
-export const InterviewSchema = new mongoose.Schema(
-  {
-    title: { type: String, required: true },
-    mimetype: { type: String, required: true },
-    fileUrl: { type: String, required: true },
-    duration: { type: Number }, // in seconds
-    language: { type: String, default: 'en' },
-    transcript: [TranscriptSegmentSchema],
-    anonymizedTranscript: [TranscriptSegmentSchema],
-    summary: { type: String },
-    categories: [{ type: String }],
-    status: {
-      type: String,
-      enum: Object.values(InterviewProcessingStatus),
-      default: InterviewProcessingStatus.Pending,
-    },
-    error: { type: String },
-  },
-  { timestamps: true },
-);
+@Schema()
+export class Interview {
+  @Prop({ required: false })
+  title?: string;
+
+  @Prop({ required: false })
+  summary?: string;
+
+  @Prop({ type: [String], required: false })
+  categories?: string[];
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: RecordingModelName })
+  recording: Recording;
+}
+
+export const InterviewSchema = SchemaFactory.createForClass(Interview);

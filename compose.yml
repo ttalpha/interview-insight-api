@@ -2,15 +2,31 @@ name: interview-insight-api-dev
 services:
   mongo:
     image: mongo:latest
+    container_name: mongo
     environment:
       MONGO_INITDB_DATABASE: interview-insight
     ports:
       - '27017:27017'
+    volumes:
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - db
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express
+    ports:
+      - '8081:8081'
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: secret
+    depends_on:
+      - mongo
     networks:
       - db
 
 networks:
   db:
-    driver: bridge
-  cache:
     driver: bridge
