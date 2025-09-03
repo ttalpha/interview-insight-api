@@ -12,7 +12,7 @@ export class FilesService {
     return newFiles;
   }
 
-  async findById(id: string) {
+  async findMetadataById(id: string) {
     const file = await this.fileModel.findById(id);
     return file;
   }

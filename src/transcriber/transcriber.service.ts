@@ -20,22 +20,29 @@ export class TranscriberService implements OnModuleInit {
     this.openai = new OpenAI({ apiKey });
   }
 
+  async removeTranscriptSegments(segmentIds: string[]) {
+    await this.transcriptSegmentModel.deleteMany({
+      _id: { $in: segmentIds },
+    });
+  }
+
   async transcribe(filePath: string) {
     const stream = createReadStream(filePath);
     const transcription = await this.openai.audio.transcriptions.create({
       file: stream,
       model: 'whisper-1',
       response_format: 'verbose_json',
-      timestamp_granularities: ['word'],
+      timestamp_granularities: ['segment'],
     });
-    const segments = (transcription.words ?? []).map((w) => ({
+    const segments = (transcription.segments ?? []).map((w) => ({
       start: w.start,
       end: w.end,
-      text: w.word,
+      text: w.text,
     }));
     const inserted = await this.transcriptSegmentModel.create(segments);
     return {
       language: transcription.language,
+      rawText: transcription.text,
       segmentIds: inserted.map((i) => i._id),
     };
   }

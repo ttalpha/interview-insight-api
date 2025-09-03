@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, Length } from 'class-validator';
+import { IsArray, IsOptional, Length, Matches } from 'class-validator';
 
 export class CreateInterviewDto {
   @IsOptional()
@@ -11,6 +11,7 @@ export class CreateInterviewDto {
 
   @IsOptional()
   @IsArray()
+  @Matches(/[^,]+/, { each: true, message: 'Category cannot contain commas' })
   @Length(1, 60, { each: true })
   categories?: string[];
 }

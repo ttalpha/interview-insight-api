@@ -14,3 +14,5 @@ export class TranscriptSegment {
 
 export const TranscriptSegmentSchema =
   SchemaFactory.createForClass(TranscriptSegment);
+
+TranscriptSegmentSchema.index({ start: -1 });
