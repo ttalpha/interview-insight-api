@@ -17,10 +17,8 @@ export class FilesService {
     return file;
   }
 
-  async remove(ids: string[]) {
-    const toBeDeleted = await this.fileModel.find({ _id: { $in: ids } });
-    const paths = toBeDeleted.map((d) => d.path);
-    await this.fileModel.deleteMany({ _id: { $in: ids } });
+  async remove(paths: string[]) {
+    await this.fileModel.deleteMany({ path: { $in: paths } });
     let removedFilesCount = 0;
     for (const path of paths) {
       try {

@@ -1,4 +1,17 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateInterviewDto } from './create-interview.dto';
+import { IsOptional, Length, IsArray, Matches } from 'class-validator';
 
-export class UpdateInterviewDto extends PartialType(CreateInterviewDto) {}
+export class UpdateInterviewDto {
+  @IsOptional()
+  @Length(1, 120)
+  title?: string;
+
+  @IsOptional()
+  @Length(1, 1000)
+  summary?: string;
+
+  @IsOptional()
+  @IsArray()
+  @Matches(/[^,]+/, { each: true, message: 'Category cannot contain commas' })
+  @Length(1, 60, { each: true })
+  categories?: string[];
+}

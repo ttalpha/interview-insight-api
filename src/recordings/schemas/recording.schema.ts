@@ -28,7 +28,7 @@ export class Recording {
   transcriptText?: string;
 
   @Prop({
-    default: RecordingProcessingStatus.Uploading,
+    default: RecordingProcessingStatus.Pending,
     enum: Object.values(RecordingProcessingStatus),
   })
   status: RecordingProcessingStatus;

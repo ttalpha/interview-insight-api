@@ -2,16 +2,16 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 @Schema()
 export class File {
-  @Prop()
+  @Prop({ required: true })
   filename: string;
 
-  @Prop()
+  @Prop({ unique: true, required: true })
   path: string;
 
-  @Prop()
+  @Prop({ required: true })
   mimetype: string;
 
-  @Prop()
+  @Prop({ required: true })
   size: number;
 }
 

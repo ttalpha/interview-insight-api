@@ -16,13 +16,13 @@ export class FindInterviewsDto {
   @IsOptional()
   @IsArray()
   @Length(1, 60, { each: true })
-  languages?: string[];
+  langs?: string[];
 
   @IsOptional()
   @Min(1)
-  minDuration?: number;
+  min_dur?: number;
 
   @IsOptional()
   @Min(1)
-  maxDuration?: number;
+  max_dur?: number;
 }

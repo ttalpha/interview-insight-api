@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateInterviewDto } from './dto/create-interview.dto';
 import { UpdateInterviewDto } from './dto/update-interview.dto';
 import { FindInterviewsDto } from './dto/find-interviews.dto';
 import { Model } from 'mongoose';
@@ -8,78 +7,126 @@ import { RecordingsService } from '../recordings/recordings.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { File } from '../files/schemas/file.schema';
 import { Recording } from '../recordings/schemas/recording.schema';
+import { SummarizerService } from '../summarizer/summarizer.service';
 
 @Injectable()
 export class InterviewsService {
   constructor(
     @InjectModel(Interview.name) private interviewModel: Model<Interview>,
     private recordingsService: RecordingsService,
+    private summarizerService: SummarizerService,
   ) {}
 
-  async create(
-    { categories, summary, title }: CreateInterviewDto,
-    uploaded: File,
-  ) {
-    const dedupliatedCategories = Array.from(new Set(categories || []));
-    const newRecording = await this.recordingsService.create(uploaded);
-    const recordingWithTranscriptData =
-      await this.recordingsService.addTranscriptData(
-        uploaded.path,
-        newRecording._id.toString(),
-      );
+  async create(uploadedFiles: File[]) {
+    const newRecordings = await this.recordingsService.create(uploadedFiles);
+    let wholeTranscript = '';
+    let index = 0;
+    for (const recording of newRecordings) {
+      wholeTranscript += `[TRANSCRIPT ${index + 1}]:`;
+      const recordingWithTranscriptData =
+        await this.recordingsService.addTranscriptData(
+          uploadedFiles[index].path,
+          recording._id.toString(),
+        );
+
+      wholeTranscript += recordingWithTranscriptData?.transcriptText ?? '';
+
+      wholeTranscript += '\n\n';
+      index++;
+    }
+
+    const { categories, summary, title } =
+      await this.summarizerService.analyzeTranscript(wholeTranscript);
+
     const createdInterview = await this.interviewModel.create({
-      categories: dedupliatedCategories,
+      categories,
       summary,
       title,
-      recording: recordingWithTranscriptData,
+      recordings: newRecordings.map((r) => r._id),
     });
+
     return createdInterview;
   }
-
   async list({
     categories,
     q,
-    maxDuration,
-    minDuration,
-    languages,
+    max_dur: maxDuration,
+    min_dur: minDuration,
+    langs: languages,
   }: FindInterviewsDto) {
-    const filter: any = {};
+    const pipeline: any[] = [];
 
+    // --- Root-level filters ---
+    const match: any = {};
     if (categories?.length) {
-      filter.categories = { $in: categories };
+      match.categories = { $in: categories };
     }
-
-    if (languages?.length) {
-      filter['recording.language'] = { $in: languages };
-    }
-
     if (q) {
-      filter.$text = { $search: q };
+      match.$text = { $search: q };
+    }
+    if (Object.keys(match).length) {
+      pipeline.push({ $match: match });
     }
 
+    // --- Join recordings ---
+    pipeline.push({
+      $lookup: {
+        from: 'recordings', // collection name in MongoDB
+        localField: 'recordings',
+        foreignField: '_id',
+        as: 'recordings',
+      },
+    });
+
+    // --- Recording-level filters ---
+    const recordingMatch: any = {};
+    if (languages?.length) {
+      recordingMatch.language = { $in: languages };
+    }
     if (minDuration !== undefined || maxDuration !== undefined) {
-      filter['recording.duration'] = {};
-      if (minDuration !== undefined)
-        filter['recording.duration'].$gte = minDuration;
-      if (maxDuration !== undefined)
-        filter['recording.duration'].$lte = maxDuration;
+      recordingMatch.duration = {};
+      if (minDuration !== undefined) recordingMatch.duration.$gte = minDuration;
+      if (maxDuration !== undefined) recordingMatch.duration.$lte = maxDuration;
     }
 
+    if (Object.keys(recordingMatch).length) {
+      pipeline.push({ $match: { recordings: { $elemMatch: recordingMatch } } });
+    }
+
+    // --- Projection (exclude heavy transcript fields) ---
+    pipeline.push({
+      $project: {
+        title: 1,
+        summary: 1,
+        categories: 1,
+        recordings: {
+          _id: 1,
+          duration: 1,
+          language: 1,
+          status: 1,
+          file: 1,
+          // explicitly exclude transcripts
+        },
+      },
+    });
+
+    return this.interviewModel.aggregate(pipeline);
+  }
+
+  async getDetail(
+    id: string,
+    recordingSelect: string = '', // default empty = all fields
+  ) {
     return this.interviewModel
-      .find(filter)
-      .select('-recording.transcript -recording.transcriptText');
-  }
-
-  getProcessingStatus(id: string) {
-    return this.interviewModel.findById(id).select('recording.status');
-  }
-
-  getDetail(id: string) {
-    return this.interviewModel.findById(id).populate('recording.transcript');
+      .findById(id)
+      .populate({ path: 'recordings', select: recordingSelect })
+      .select('recordings');
   }
 
   async update(id: string, { categories, summary, title }: UpdateInterviewDto) {
-    const dedupliatedCategories = Array.from(new Set(categories || []));
+    const dedupliatedCategories = categories
+      ? Array.from(new Set(categories))
+      : undefined;
     const updated = await this.interviewModel.findByIdAndUpdate(
       id,
       {
@@ -94,9 +141,14 @@ export class InterviewsService {
   }
 
   async remove(id: string) {
-    const deleted = await this.interviewModel.findByIdAndDelete(id);
+    const deleted = await this.interviewModel
+      .findByIdAndDelete(id)
+      .select({ path: 'recordings', select: '_id' })
+      .populate('recordings');
     if (!deleted) throw new NotFoundException();
-    const toDeleteRecording = deleted.recording as Recording & { _id: string };
-    await this.recordingsService.remove(toDeleteRecording._id);
+    const toDeleteRecordings = deleted.recordings as Array<
+      Recording & { _id: string }
+    >;
+    await this.recordingsService.remove(toDeleteRecordings.map((r) => r._id));
   }
 }

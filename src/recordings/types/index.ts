@@ -1,7 +1,6 @@
 export enum RecordingProcessingStatus {
-  Uploading = 'uploading',
-  Transcribing = 'transcribing',
-  Analyzing = 'analyzing',
+  Pending = 'pending',
+  Processing = 'processing',
   Done = 'done',
   Failed = 'failed',
 }

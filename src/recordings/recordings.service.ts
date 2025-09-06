@@ -21,27 +21,39 @@ export class RecordingsService {
     private transcriberService: TranscriberService,
   ) {}
 
-  async create(uploadedFile: File) {
-    const [fileMetadata] = await this.filesService.upload([uploadedFile]);
-    const audioDuration = await this.getAudioDuration(uploadedFile.path);
+  async create(uploadedFiles: File[]) {
+    const filesMetadata = await this.filesService.upload(uploadedFiles);
 
-    const recording = await this.recordingModel.create({
-      duration: audioDuration,
-      file: fileMetadata,
-      status: RecordingProcessingStatus.Uploading,
-    });
-    return recording;
+    const audioDurations = await Promise.all(
+      uploadedFiles.map((file) => this.getAudioDuration(file.path)),
+    );
+
+    const recordingDocs = filesMetadata.map((metadata, index) => ({
+      duration: audioDurations[index],
+      file: metadata,
+      status: RecordingProcessingStatus.Pending,
+    }));
+
+    const recordings = await this.recordingModel.create(recordingDocs);
+
+    return recordings;
   }
 
   async addTranscriptData(filePath: string, recordingId: string) {
     try {
+      await this.updateStatus(
+        recordingId,
+        RecordingProcessingStatus.Processing,
+      );
+
       const { language, rawText, segmentIds } =
         await this.transcriberService.transcribe(filePath);
+
       const recordingWithTranscriptAdded =
         await this.recordingModel.findByIdAndUpdate(
           recordingId,
           {
-            status: RecordingProcessingStatus.Transcribing,
+            status: RecordingProcessingStatus.Done,
             language,
             transcriptText: rawText,
             transcript: segmentIds,
@@ -70,23 +82,31 @@ export class RecordingsService {
     return interviewWithUpdatedStatus;
   }
 
-  async remove(recordingId: string) {
-    const recordingWithFileAndSegments = await this.recordingModel
-      .findByIdAndDelete(recordingId)
-      .populate('transcript')
-      .populate('file');
+  async remove(recordingIds: string[]) {
+    const recordingsWithFileAndTranscript = await this.recordingModel
+      .find({ _id: { $in: recordingIds } })
+      .populate({ path: 'file', select: 'path' }) // ✅ proper populate
+      .populate({ path: 'transcript', select: '_id' }) // ✅ transcript IDs
+      .select('file transcript'); // ✅ only keep what you need
 
-    if (!recordingWithFileAndSegments) throw new NotFoundException();
-    const transcriptSegments = recordingWithFileAndSegments.transcript as Array<
-      TranscriptSegment & { _id: string }
-    >;
-    await this.transcriberService.removeTranscriptSegments(
-      transcriptSegments.map((t) => t._id),
+    await this.recordingModel.deleteMany({ _id: { $in: recordingIds } });
+
+    const transcriptSegments = recordingsWithFileAndTranscript.flatMap((r) =>
+      r.transcript.map((t: TranscriptSegment & { _id: string }) => t._id),
     );
-    const recordingFile = recordingWithFileAndSegments.file as File & {
-      _id: string;
-    };
-    return this.filesService.remove([recordingFile._id]);
+
+    const filePaths = recordingsWithFileAndTranscript.map((r) => r.file?.path);
+
+    await this.transcriberService.removeTranscriptSegments(transcriptSegments);
+    return this.filesService.remove(filePaths);
+  }
+
+  async getDetail(id: string) {
+    const recording = await this.recordingModel
+      .findById(id)
+      .populate('transcript');
+    if (!recording) throw new NotFoundException();
+    return recording;
   }
 
   private getAudioDuration(filePath: string): Promise<number> {

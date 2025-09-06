@@ -7,46 +7,47 @@ import {
   Param,
   Delete,
   Query,
-  UploadedFile,
   UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
 import { InterviewsService } from './interviews.service';
-import { CreateInterviewDto } from './dto/create-interview.dto';
 import { UpdateInterviewDto } from './dto/update-interview.dto';
 import { FindInterviewsDto } from './dto/find-interviews.dto';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 
 @Controller('interviews')
 export class InterviewsController {
   constructor(private readonly interviewsService: InterviewsService) {}
 
   @Post()
-  @UseInterceptors(FileInterceptor('recording'))
-  create(
-    @Body() createInterviewDto: CreateInterviewDto,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    return this.interviewsService.create(createInterviewDto, {
-      filename: file.filename,
-      path: file.path,
-      mimetype: file.mimetype,
-      size: file.size,
-    });
+  @UseInterceptors(FilesInterceptor('recordings'))
+  async create(@UploadedFiles() files: Express.Multer.File[]) {
+    const newInterview = await this.interviewsService.create(
+      files.map((file) => ({
+        filename: file.filename,
+        path: file.path,
+        mimetype: file.mimetype,
+        size: file.size,
+      })),
+    );
+    return newInterview;
   }
 
   @Get()
-  list(@Query() findInterviewsDto: FindInterviewsDto) {
-    return this.interviewsService.list(findInterviewsDto);
+  async list(@Query() findInterviewsDto: FindInterviewsDto) {
+    const interviews = await this.interviewsService.list(findInterviewsDto);
+    return interviews;
   }
 
   @Get(':id/status')
-  getProcessingStatus(@Param('id') id: string) {
-    return this.interviewsService.getProcessingStatus(id);
+  async getProcessingStatus(@Param('id') id: string) {
+    const data = await this.interviewsService.getDetail(id, 'status');
+    return data?.recordings;
   }
 
   @Get(':id')
   getDetail(@Param('id') id: string) {
-    return this.interviewsService.getDetail(id);
+    return this.interviewsService.getDetail(id, '-transcript');
   }
 
   @Patch(':id')

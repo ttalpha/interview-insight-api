@@ -9,14 +9,15 @@ import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import path from 'path';
 import { RECORDING_ALLOWED_MIMETYPES, RECORDING_MAX_BYTES } from '../constants';
+import { SummarizerModule } from '../summarizer/summarizer.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Interview.name, schema: InterviewSchema },
     ]),
+    SummarizerModule,
     RecordingsModule,
-
     MulterModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
@@ -32,7 +33,7 @@ import { RECORDING_ALLOWED_MIMETYPES, RECORDING_MAX_BYTES } from '../constants';
         fileFilter: (req, file, callback) => {
           if (!RECORDING_ALLOWED_MIMETYPES.includes(file.mimetype))
             return callback(new Error('Invalid file type'), false);
-          if (file.size <= RECORDING_MAX_BYTES)
+          if (file.size >= RECORDING_MAX_BYTES)
             return callback(new Error('File size is too large'), false);
           return callback(null, true);
         },

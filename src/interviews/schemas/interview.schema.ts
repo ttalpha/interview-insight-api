@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Recording } from '../../recordings/schemas/recording.schema';
+import mongoose from 'mongoose';
+import { RecordingModelName } from '../../constants';
 
 @Schema()
 export class Interview {
@@ -12,8 +14,10 @@ export class Interview {
   @Prop({ type: [String], required: false })
   categories?: string[];
 
-  @Prop({ type: Recording })
-  recording: Recording;
+  @Prop({
+    type: [{ type: mongoose.Schema.Types.ObjectId, ref: RecordingModelName }],
+  })
+  recordings: Recording[];
 }
 
 export const InterviewSchema = SchemaFactory.createForClass(Interview);
@@ -21,5 +25,4 @@ export const InterviewSchema = SchemaFactory.createForClass(Interview);
 InterviewSchema.index({
   title: 'text',
   summary: 'text',
-  'recording.transcriptText': 'text',
 });

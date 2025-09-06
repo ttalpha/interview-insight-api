@@ -8,6 +8,7 @@ import { FilesModule } from './files/files.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { RecordingsModule } from './recordings/recordings.module';
 import { TranscriberModule } from './transcriber/transcriber.module';
+import { SummarizerModule } from './summarizer/summarizer.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { TranscriberModule } from './transcriber/transcriber.module';
     FilesModule,
     RecordingsModule,
     TranscriberModule,
+    SummarizerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
